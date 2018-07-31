@@ -10,24 +10,24 @@ import { NgForm } from '@angular/forms';
 
 @Component({
   selector: 'app-question',
-  templateUrl: './question.component.html'
+  templateUrl: './question.component.html',
+  styleUrls: ['./question.component.css']
 })
 
 export class QuestionComponent implements OnInit {
 
   constructor(public questionService: QuestionService, public enviromentTypeService: EnviromentTypeService) { }
-
+  
+  cbSelectAll: boolean;
   questions: Question[];
   enviromentTypes: EnviromentType[];
   question: Question = new Question();
   selectItems: Array<IOption>;
   selectedEnviromentTypes: Array<String> = [];
-
-  //Filter and pagination
   questionFiltered: Question[];
   lengthQuestionPagination: number;
 
-    @ViewChild('questionForm') questionForm : NgForm;
+  @ViewChild('questionForm') questionForm : NgForm;
 
   ngOnInit() {
     this.load();
@@ -39,8 +39,17 @@ export class QuestionComponent implements OnInit {
       question => question.title.toLowerCase().includes(typed.toLowerCase()));
     this.lengthQuestionPagination = this.questionFiltered.length;
   }
+  
+  selectAll(): void {
+    if(this.cbSelectAll) {  
+      this.selectedEnviromentTypes = this.enviromentTypes.map(({ id, name }) => 
+        ({ label: name, value: id.toString() })).map(item => String(item.value));
+    }
+    else 
+      this.selectedEnviromentTypes = [];
+   
+  }
 
-  /* REFATORAR */
   save(question): void {
     if (!question.id) {
       question['enviroment_types_id'] = this.selectedEnviromentTypes;
