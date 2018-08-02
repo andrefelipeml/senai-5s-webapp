@@ -6,11 +6,14 @@ import { Enviroment } from '../enviroments/enviroment';
 import { User } from '../users/user';
 import { UserService } from '../users/user.service';
 import * as moment from 'moment';
+import { IOption } from 'ng-select';
 import { BsDatepickerConfig } from 'ngx-bootstrap/datepicker';
 import { defineLocale, PageChangedEvent } from 'ngx-bootstrap';
 import { ptBrLocale } from 'ngx-bootstrap/locale';
 import swal from 'sweetalert';
 import { NgForm } from '@angular/forms';
+import { UnitService } from '../units/unit.service';
+import { Unit } from '../units/unit';
 
 @Component({
   selector: 'app-evaluation',
@@ -21,8 +24,11 @@ export class EvaluationComponent implements OnInit {
   evaluation: Evaluation = new Evaluation();
   evaluations: Evaluation[];
   users: User[];
+  units: Unit[];
   enviroments: Enviroment[];
   period: Date[];
+  selectItems: Array<IOption>;
+  selectedEnviroment: Array<string> = [];
 
   //Filter and pagination
   evaluationFiltered: Evaluation[];
@@ -31,15 +37,16 @@ export class EvaluationComponent implements OnInit {
 
   constructor(private evaluationService: EvaluationService,
     private userService: UserService,
-    private enviromentService: EnviromentService) {
+    private enviromentService: EnviromentService,
+    private unitService: UnitService) {
     moment.locale('pt-BR');
     defineLocale('pt-br', ptBrLocale);
   }
 
   ngOnInit() {
     moment.locale('pt-br');
-    this.loadEnviroments();
     this.loadUsers();
+    this.loadUnits();
     this.load();
   }
 
@@ -63,11 +70,14 @@ export class EvaluationComponent implements OnInit {
     );
   }
 
-  loadEnviroments() {
-    this.enviromentService.load()
+  loadEnviromentsByUnit(unitId) {
+    this.enviromentService.loadEnviromentsByUnit(unitId)
       .subscribe(enviroments => {
         this.enviroments = enviroments;
-      });
+        this.selectItems = enviroments
+          .map(({ id, name }) => (
+            { label: name, value: id.toString() }));
+      })
   }
 
   loadUsers() {
@@ -77,41 +87,42 @@ export class EvaluationComponent implements OnInit {
       })
   }
 
+  loadUnits() {
+    this.unitService.load()
+      .subscribe(units => {
+        this.units = units;
+      })
+  }
+
   save(evaluation) {
+    evaluation.enviroments_id = this.selectedEnviroment;
     evaluation.createDate = this.period[0];
     evaluation.dueDate = this.period[1];
+    this.evaluation.status = this.checkStatus(evaluation);
     if(!evaluation.id){
-      if(evaluation.dueDate.getTime() >= new Date().setHours(0,0,0,0)){
-        evaluation.status = "PENDENTE";
-      } else{
-        evaluation.status = "ATRASADA";
-      }
       this.evaluationService.save(evaluation)
         .subscribe(res => {
           this.getValidation(res);
           this.load();
         })
     } else {
-      if(evaluation.status != "CONCLUIDA"){   
-        if(evaluation.dueDate.getTime() >= new Date().setHours(0,0,0,0)){
-          evaluation.status = "PENDENTE";
-        } else{
-          evaluation.status = "ATRASADA";
-        }
-      }
-      this.evaluationService.update(evaluation)
+      if(evaluation.status != "CONCLUIDA") {
+        this.evaluationService.update(evaluation)
         .subscribe(res => {
           this.getValidation(res);
           this.load();
         })
+      }
     }
   }
 
   update(evaluation: Evaluation): void {
+    this.selectedEnviroment = [];
     if(evaluation.status != "CONCLUIDA"){   
       moment.locale('pt-BR');
       this.period = [moment(evaluation.createDate).toDate(), moment(evaluation.dueDate).toDate()];
       this.evaluation = evaluation;
+      this.selectedEnviroment.push(this.evaluation.enviroments_id.toString());
       window.scroll(0, 0);
     }
   }
@@ -155,5 +166,10 @@ export class EvaluationComponent implements OnInit {
         this.getValidation(error.error)
       }
     );
+  }
+
+  checkStatus(evaluation: Evaluation): string {
+    return evaluation.dueDate.getTime() >= new Date().setHours(0,0,0,0)
+      ? evaluation.status = "PENDENTE" : evaluation.status = "ATRASADA";
   }
 }

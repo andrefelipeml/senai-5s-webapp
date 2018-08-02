@@ -6,7 +6,10 @@ import swal from 'sweetalert';
 import { JwtHelperService } from '@auth0/angular-jwt';
 import { PageChangedEvent } from 'ngx-bootstrap/pagination';
 import { NgForm } from '@angular/forms';
-import { UtilService } from '../util/util.service';
+import { IOption } from 'ng-select';
+import { UserType } from './user-type.enum'
+import { UserTypeDisplay } from './user-type-display.enum'
+
 
 const helper = new JwtHelperService();
 
@@ -17,18 +20,22 @@ const helper = new JwtHelperService();
 })
 
 export class UserComponent implements OnInit {
-
+  
   user: User = new User();
   users: User[];
   userSession: User = new User();
-
-  //Filter and pagination
+  selectItems: Array<String> = [];
+  selectedTypeUser: Array<IOption> = [
+    {label: 'Administrador', value: '1'},
+    {label: 'Avaliador', value: '2'},
+    {label: 'Responsável pelo ambiente ', value: '4'}
+  ];
+  UserTypeDisplay = UserTypeDisplay;
   userFiltered: User[];
   lengthUsersPagination: number;
-
   @ViewChild('userForm') userForm: NgForm;
 
-  constructor(private userService: UserService, private utilService: UtilService) {
+  constructor(private userService: UserService) {
   }
 
   ngOnInit(): void {
@@ -98,12 +105,25 @@ export class UserComponent implements OnInit {
       );
   }
 
-  save(user): void {
+  checkIfExists(user: User) {
     let isRegistered = this.users.find(currentUser => currentUser.email === user.email);
     user.password = 'newPasswordFirstAccess';
-    if (isRegistered && isRegistered.id !== user.id)
+
+    if (isRegistered && isRegistered.id !== user.id) {
       this.showModal('Usuário não cadastrado', 'Já existe um usuário com este e-mail');
-    else {
+      return true;
+    }
+    return false;
+  }
+
+  save(user): void {
+
+    user["profile"] = 
+      Number(this.selectItems[0]) |
+      Number(this.selectItems[1]) |
+      Number(this.selectItems[2])
+
+    if(!this.checkIfExists(user)) {
       if (!user.id) {
         this.userService.save(user)
           .subscribe(res => {
@@ -111,22 +131,11 @@ export class UserComponent implements OnInit {
             this.load();
           });
       } else {
-        try {
-          this.utilService.loadById(user.id)
-          .subscribe((res) => {
-            if (res) {
-              this.userService.update(user)
-                .subscribe((res) => {
-                  this.getValidation(res);
-                  this.load();
-                })
-            }
-            else
-              swal('', 'Esse usuário pode ter sido removido. Atualize a página e tente novamente!', 'warning');
-          })
-        } catch (error) {
-          console.log(error);
-        }
+        this.userService.update(user)
+        .subscribe((res) => {
+          this.getValidation(res);
+          this.load();
+        })
       }
     }
   }
@@ -144,5 +153,32 @@ export class UserComponent implements OnInit {
   update(user: User): void {
     this.user = new User(user.id, user.name, user.email, user.password, user.userName, user.profile)
     window.scroll(0, 0);
+    this.selectItems = this.getUserType(user.profile);
+  }
+
+  getUserType(profile) : Array<String> {
+    switch(profile) {
+
+      case UserType.ADMIN:
+        return ['1'];
+
+      case UserType.APPRAISER:
+        return ['2']
+
+      case UserType.ADMIN_APPRAISER:
+        return ['1, 2'];
+
+      case UserType.RESPONSIBLE:
+        return ['4'];
+      
+      case UserType.ADMIN_RESPONSIBLE:
+        return ['1', '4'];
+
+      case UserType.RESPONSIBLE_APPRAISER:
+        return ['4', '2'];
+
+      default:
+        return ['1', '2', '4'];
+    }
   }
 }
